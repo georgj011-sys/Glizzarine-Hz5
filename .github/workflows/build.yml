@@ -1,1 +1,46 @@
+name: Build Glizzarine Harmonizer (Windows)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -A x64 -DGLZH_TESTS=ON
+
+      - name: Build plugin
+        run: cmake --build build --config Release --parallel --target GlizzarineHarmonizer_VST3 GlizzarineHarmonizer_Standalone
+
+      - name: Upload plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlizzarineHarmonizer-Windows
+          path: |
+            build/GlizzarineHarmonizer_artefacts/Release/VST3/
+            build/GlizzarineHarmonizer_artefacts/Release/Standalone/
+
+      # the same tests as on the Mac, here with the Windows compiler
+      - name: Build tests
+        run: cmake --build build --config Release --parallel --target qa fuzz bounce glide t10
+
+      - name: Test - engine V2 (glide, voicing, humanize, consonants, low latency)
+        run: build/dev-tests/Release/glide.exe
+
+      - name: Test - QA (every knob, presets, MIDI out, sample rates, block sizes)
+        run: build/dev-tests/Release/qa.exe
+
+      - name: Test - export (fast bounce, huge blocks, sample-rate changes)
+        run: build/dev-tests/Release/bounce.exe 60
+
+      - name: Test - fuzz (random MIDI / parameters / blocks, 3 seeds)
+        run: |
+          build/dev-tests/Release/fuzz.exe 120 1; if ($LASTEXITCODE) { exit 1 }
+          build/dev-tests/Release/fuzz.exe 120 2; if ($LASTEXITCODE) { exit 1 }
+          build/dev-tests/Release/fuzz.exe 120 3; if ($LASTEXITCODE) { exit 1 }
 
